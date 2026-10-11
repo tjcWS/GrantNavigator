@@ -8,3 +8,11 @@ dist-ssr
 *.log
 node_modules/
 .vscode/
+
+# backend (Python)
+__pycache__/
+*.pyc
+backend/.venv/
+venv/
+*.db
+.pytest_cache/
