@@ -1,39 +1,27 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Paper, Stack, Typography } from '@mui/material';
-import InterestsFields, { type InterestsValue } from '../components/InterestsFields';
-import { useApp } from '../context/AppContext';
+import { Box, Container, Fade, Paper, Typography } from '@mui/material';
+import { InterestsForm } from '@/features/setup-interests';
 
-// Экран 2: настройка интересов после регистрации.
-export default function InterestsPage() {
+/** Настройка интересов после регистрации. */
+export function InterestsPage() {
   const navigate = useNavigate();
-  const { profile, updateProfile } = useApp();
-  const [value, setValue] = useState<InterestsValue>({
-    directions: profile.directions,
-    activityField: profile.activityField,
-    experience: profile.experience,
-  });
-
-  const save = () => {
-    updateProfile(value);
-    navigate('/grants');
-  };
+  const goToCatalog = () => navigate('/grants');
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 4 } }}>
-      <Typography variant="h5" component="h1" sx={{ mb: 0.5 }}>
-        Что вам интересно?
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
-        По этим данным мы отметим подходящие конкурсы в каталоге. Изменить выбор можно в профиле.
-      </Typography>
-      <InterestsFields value={value} onChange={setValue} />
-      <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 4 }}>
-        <Button onClick={() => navigate('/grants')}>Пропустить</Button>
-        <Button variant="contained" onClick={save}>
-          Сохранить
-        </Button>
-      </Stack>
-    </Paper>
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', py: 4, background: 'linear-gradient(160deg, #e8f0fe 0%, #f5f7fb 60%)' }}>
+      <Container maxWidth="sm">
+        <Fade in appear timeout={500}>
+          <Paper elevation={3} sx={{ p: { xs: 2.5, sm: 4 } }}>
+            <Typography variant="h4" component="h1" fontWeight={800} gutterBottom>
+              Что вам интересно?
+            </Typography>
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+              Мы подберём конкурсы по вашим направлениям. Настройку можно пропустить и изменить позже в профиле.
+            </Typography>
+            <InterestsForm onSaved={goToCatalog} onSkip={goToCatalog} />
+          </Paper>
+        </Fade>
+      </Container>
+    </Box>
   );
 }

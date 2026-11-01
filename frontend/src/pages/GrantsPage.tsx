@@ -1,75 +1,53 @@
 import { useMemo, useState } from 'react';
-import { Box, FormControlLabel, InputAdornment, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import PageHeader from '../components/PageHeader';
-import GrantCard from '../components/GrantCard';
-import ProjectSelectDialog from '../components/ProjectSelectDialog';
-import { DIRECTIONS } from '../data/constants';
-import { mockGrants } from '../data/mockData';
-import { useApp } from '../context/AppContext';
-import { isRecommended, matchesSearch } from '../utils/grants';
+import { Box, Button } from '@mui/material';
+import { Grant, GrantCard, grantApi } from '@/entities/grant';
+import { useSession } from '@/entities/user';
+import { DEFAULT_FILTERS, GrantFilterState, GrantFilters, filterGrants } from '@/features/grant-search';
+import { SelectProjectDialog } from '@/features/participate';
+import { useAsync } from '@/shared/lib';
+import { AsyncBoundary, CardGridSkeleton, EmptyState, PageHeader, Reveal } from '@/shared/ui';
 
-// Экран 3: каталог конкурсов с поиском и фильтрами.
-export default function GrantsPage() {
-  const { profile } = useApp();
-  const [query, setQuery] = useState('');
-  const [direction, setDirection] = useState('');
-  const [onlyRecommended, setOnlyRecommended] = useState(false);
-  const [participateId, setParticipateId] = useState<string | null>(null);
+/** Каталог конкурсов: поиск, фильтры, рекомендации, запуск участия. */
+export function GrantsPage() {
+  const { user } = useSession();
+  const grants = useAsync(() => grantApi.list(), []);
+  const [filters, setFilters] = useState<GrantFilterState>(DEFAULT_FILTERS);
+  const [participateIn, setParticipateIn] = useState<Grant | null>(null);
 
-  const grants = useMemo(
-    () =>
-      mockGrants.filter(
-        (g) =>
-          matchesSearch(g, query) &&
-          (!direction || g.directions.includes(direction)) &&
-          (!onlyRecommended || isRecommended(g, profile)),
-      ),
-    [query, direction, onlyRecommended, profile],
+  const visible = useMemo(
+    () => (grants.data ? filterGrants(grants.data, filters, user?.interests ?? []) : []),
+    [grants.data, filters, user?.interests],
   );
 
   return (
     <>
-      <PageHeader title="Каталог грантовых конкурсов" subtitle="Найдите конкурс, под который у вас уже есть проект, и подготовьте заявку." />
+      <PageHeader title="Каталог конкурсов" subtitle="Найдите грант, подходящий вашему проекту" />
+      <GrantFilters value={filters} onChange={setFilters} />
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} sx={{ mb: 3 }}>
-        <TextField
-          placeholder="Поиск по названию, организатору, тегам"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          slotProps={{ input: { startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ) } }}
-          sx={{ bgcolor: 'background.paper' }}
-        />
-        <TextField select label="Направление" value={direction} onChange={(e) => setDirection(e.target.value)} sx={{ minWidth: 240, bgcolor: 'background.paper' }}>
-          <MenuItem value="">Все направления</MenuItem>
-          {DIRECTIONS.map((d) => (
-            <MenuItem key={d} value={d}>
-              {d}
-            </MenuItem>
-          ))}
-        </TextField>
-        <FormControlLabel
-          sx={{ flexShrink: 0, mx: 0 }}
-          control={<Switch checked={onlyRecommended} onChange={(e) => setOnlyRecommended(e.target.checked)} />}
-          label="Только рекомендованные"
-        />
-      </Stack>
-
-      {grants.length === 0 ? (
-        <Typography color="text.secondary">Ничего не найдено. Попробуйте изменить запрос или сбросить фильтры.</Typography>
-      ) : (
-        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' } }}>
-          {grants.map((grant) => (
-            <GrantCard key={grant.id} grant={grant} recommended={isRecommended(grant, profile)} onParticipate={setParticipateId} />
+      <AsyncBoundary
+        loading={grants.initialLoading}
+        error={grants.initialError}
+        onRetry={grants.reload}
+        skeleton={<CardGridSkeleton />}
+        isEmpty={visible.length === 0}
+        emptyState={
+          <EmptyState
+            title="Ничего не найдено"
+            description="Попробуйте изменить запрос или сбросить фильтры."
+            action={<Button onClick={() => setFilters(DEFAULT_FILTERS)}>Сбросить фильтры</Button>}
+          />
+        }
+      >
+        <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' } }}>
+          {visible.map(({ grant, recommended }, index) => (
+            <Reveal key={grant.id} index={index}>
+              <GrantCard grant={grant} recommended={recommended} onParticipate={setParticipateIn} />
+            </Reveal>
           ))}
         </Box>
-      )}
+      </AsyncBoundary>
 
-      <ProjectSelectDialog open={participateId !== null} grantId={participateId} onClose={() => setParticipateId(null)} />
+      <SelectProjectDialog grant={participateIn} onClose={() => setParticipateIn(null)} />
     </>
   );
 }

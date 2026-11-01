@@ -1,18 +1,18 @@
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Typography } from '@mui/material';
+import { Button, Container, Stack, Typography } from '@mui/material';
 
-export default function NotFoundPage() {
+export function NotFoundPage() {
   return (
-    <>
-      <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
-        Страница не найдена
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Проверьте адрес или вернитесь в каталог конкурсов.
-      </Typography>
-      <Button component={RouterLink} to="/grants" variant="contained">
-        В каталог
-      </Button>
-    </>
+    <Container maxWidth="sm">
+      <Stack alignItems="center" spacing={2} sx={{ py: 12, textAlign: 'center' }}>
+        <Typography variant="h2" fontWeight={800} color="primary">
+          404
+        </Typography>
+        <Typography variant="h6">Такой страницы нет</Typography>
+        <Button variant="contained" component={RouterLink} to="/grants">
+          В каталог конкурсов
+        </Button>
+      </Stack>
+    </Container>
   );
 }
