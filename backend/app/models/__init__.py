@@ -2,6 +2,7 @@
 # при создании таблиц (см. scripts/create_tables.py).
 from app.core.database import Base
 from app.models.user import User
+from app.models.auth import RefreshSession
 from app.models.direction import Direction, user_directions
 from app.models.grant import Grant, GrantSection, grant_directions
 from app.models.project import Project
@@ -11,6 +12,7 @@ from app.models.check import CheckResult, CheckIssue, CheckSeverity
 __all__ = [
     "Base",
     "User",
+    "RefreshSession",
     "Direction",
     "user_directions",
     "Grant",

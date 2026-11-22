@@ -1,6 +1,6 @@
 def _create_user(client, login="anna_k"):
     resp = client.post(
-        "/users",
+        "/auth/register",
         json={
             "first_name": "Анна",
             "last_name": "Кузнецова",
@@ -11,7 +11,9 @@ def _create_user(client, login="anna_k"):
         },
     )
     assert resp.status_code == 201, resp.text
-    return resp.json()
+    pair = resp.json()
+    client.headers.update({"Authorization": f"Bearer {pair['access_token']}"})
+    return pair["user"]
 
 
 def _create_grant(client):
@@ -50,13 +52,14 @@ def test_user_crud_and_duplicate_conflict(client):
 
     # повторная регистрация с тем же email/login -> 409
     resp = client.post(
-        "/users",
+        "/auth/register",
         json={
             "first_name": "Анна",
             "last_name": "Кузнецова",
             "email": "anna_k@example.com",
             "login": "anna_k",
             "password": "password123",
+            "direction_ids": [],
         },
     )
     assert resp.status_code == 409
@@ -74,13 +77,14 @@ def test_user_crud_and_duplicate_conflict(client):
 
 def test_user_validation_error(client):
     resp = client.post(
-        "/users",
-        json={"first_name": "", "last_name": "Кузнецова", "email": "not-an-email", "login": "ab", "password": "123"},
+        "/auth/register",
+        json={"first_name": "", "last_name": "Кузнецова", "email": "not-an-email", "login": "ab", "password": "123", "direction_ids": []},
     )
     assert resp.status_code == 422
 
 
 def test_grant_crud(client):
+    _create_user(client)
     grant = _create_grant(client)
     assert len(grant["sections"]) == 2
 
@@ -99,12 +103,11 @@ def test_grant_crud(client):
     assert resp.status_code == 404
 
 
-def test_project_requires_existing_owner(client):
+def test_project_owner_is_taken_from_authenticated_user(client):
+    user = _create_user(client)
     resp = client.post("/projects", json={"title": "Экоцентр", "owner_id": 999})
-    # внешний ключ в SQLite по умолчанию не включён, но бизнес-логика должна
-    # отработать создание, в PostgreSQL это ограничение будет на уровне БД (FK).
-    # Здесь проверяем, что как минимум запись с несуществующим владельцем не ломает API.
-    assert resp.status_code in (201, 404, 409)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["owner_id"] == user["id"]
 
 
 def test_full_application_flow(client):

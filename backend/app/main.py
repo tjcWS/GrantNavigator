@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app.api.routes import applications, directions, grants, projects, users
+from app.api.routes import applications, auth, directions, grants, projects, users
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -28,10 +28,11 @@ def handle_integrity_error(request, exc: IntegrityError):
 
 @app.exception_handler(RequestValidationError)
 def handle_validation_error(request, exc: RequestValidationError):
-    # Делаем сообщение об ошибке валидации чуть понятнее стандартного
+
     return JSONResponse(status_code=422, content={"detail": "Некорректные данные запроса", "errors": exc.errors()})
 
 
+app.include_router(auth.router)
 app.include_router(directions.router)
 app.include_router(users.router)
 app.include_router(grants.router)

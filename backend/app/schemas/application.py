@@ -27,7 +27,8 @@ class ApplicationBase(BaseModel):
 class ApplicationCreate(ApplicationBase):
     grant_id: int
     project_id: int
-    owner_id: int
+    # Владелец определяется сервером по access-токену
+    owner_id: int | None = None
 
 
 class ApplicationUpdate(BaseModel):

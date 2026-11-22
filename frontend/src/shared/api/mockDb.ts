@@ -230,3 +230,12 @@ export function requireUserId(): number {
   if (id === null) throw new AppError('Требуется вход в аккаунт');
   return id;
 }
+
+/** Устанавливает id пользователя реального backend для существующего демо-слоя данных. */
+export function setSessionUserId(id: number | null): void {
+  db().sessionUserId = id;
+  if (id !== null && !db().users.some((u) => u.id === id)) {
+    db().users.push({ id, firstName: '', lastName: '', email: '', login: '', password: '', interests: [], experience: 'none' });
+  }
+  save();
+}

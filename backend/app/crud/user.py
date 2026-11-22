@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.core.security import hash_password
 from app.crud.direction import get_directions_by_ids
@@ -11,7 +12,7 @@ def get_user(db: Session, user_id: int) -> User | None:
 
 
 def get_user_by_email_or_login(db: Session, email: str, login: str) -> User | None:
-    return db.query(User).filter((User.email == email) | (User.login == login)).first()
+    return db.query(User).filter((func.lower(User.email) == email.lower()) | (func.lower(User.login) == login.lower())).first()
 
 
 def list_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:

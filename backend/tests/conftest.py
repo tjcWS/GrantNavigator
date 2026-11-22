@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_db
 from app.core.database import Base
-from app.main import app
+from app.main import app as fastapi_app
 import app.models  # noqa: F401
 
 engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
@@ -24,9 +24,9 @@ def client():
         finally:
             db.close()
 
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    with TestClient(fastapi_app) as c:
         yield c
 
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)

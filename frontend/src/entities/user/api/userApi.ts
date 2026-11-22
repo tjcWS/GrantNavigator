@@ -1,97 +1,71 @@
-import { db, nextId, requireUserId, respond, save } from '@/shared/api';
-import { AppError } from '@/shared/lib';
+import { apiRequest, authRequest, clearTokens, getRefreshToken, saveTokens, setSessionUserId } from '@/shared/api';
+import { db, save } from '@/shared/api';
 import { ExperienceLevel, StoredUser, User } from '../model/types';
+import { AppError } from '@/shared/lib';
 
-export interface RegisterInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  login: string;
-  password: string;
+export interface RegisterInput { firstName: string; lastName: string; email: string; login: string; password: string; }
+export interface ProfilePatch { firstName?: string; lastName?: string; email?: string; login?: string; interests?: string[]; experience?: ExperienceLevel; }
+interface ApiUser { id: number; email: string; login: string; first_name: string; last_name: string; experience: string; directions?: { id: number; name: string }[]; }
+interface TokenPair { access_token: string; refresh_token: string; user: ApiUser; }
+function toUser(u: ApiUser): User {
+  const experience: ExperienceLevel = u.experience === 'expert' ? 'experienced' : u.experience === 'some' ? 'beginner' : 'none';
+  return { id: u.id, email: u.email, login: u.login, firstName: u.first_name, lastName: u.last_name, experience, interests: (u.directions || []).map((d) => d.name) };
 }
-
-export interface ProfilePatch {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  login?: string;
-  interests?: string[];
-  experience?: ExperienceLevel;
+async function acceptPair(pair: TokenPair): Promise<User> {
+  saveTokens(pair.access_token, pair.refresh_token);
+  const user = toUser(pair.user);
+  setSessionUserId(user.id);
+  return user;
 }
-
-function toUser(stored: StoredUser): User {
-  const { password: _password, ...user } = stored;
-  return { ...user, interests: [...user.interests] };
-}
-
-function assertUnique(email: string | undefined, login: string | undefined, exceptId?: number) {
-  const others = db().users.filter((u) => u.id !== exceptId);
-  if (email && others.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    throw new AppError('Пользователь с таким email уже существует');
-  }
-  if (login && others.some((u) => u.login.toLowerCase() === login.toLowerCase())) {
-    throw new AppError('Пользователь с таким логином уже существует');
-  }
+function toLocalUser(user: User): StoredUser {
+  return { ...user, password: '' };
 }
 
 export const userApi = {
-  /** Пользователь из сохранённой сессии (синхронно — нужен при старте приложения) */
-  getCurrentSync(): User | null {
-    const id = db().sessionUserId;
-    const stored = db().users.find((u) => u.id === id);
-    return stored ? toUser(stored) : null;
+  async restoreSession(): Promise<User | null> {
+    if (!getRefreshToken()) { clearTokens(); setSessionUserId(null); return null; }
+    try {
+      const raw = await apiRequest<ApiUser>('/auth/me');
+      const user = toUser(raw);
+      setSessionUserId(user.id);
+      return user;
+    } catch { clearTokens(); setSessionUserId(null); return null; }
   },
-
-  register: (input: RegisterInput): Promise<User> =>
-    respond(() => {
-      assertUnique(input.email, input.login);
-      const stored: StoredUser = {
-        id: nextId(db().users),
-        ...input,
-        email: input.email.trim().toLowerCase(),
-        interests: [],
-        experience: 'none',
-      };
-      db().users.push(stored);
-      db().sessionUserId = stored.id;
-      save();
-      return toUser(stored);
-    }),
-
-  login: (loginOrEmail: string, password: string): Promise<User> =>
-    respond(() => {
-      const value = loginOrEmail.trim().toLowerCase();
-      const stored = db().users.find((u) => u.login.toLowerCase() === value || u.email.toLowerCase() === value);
-      if (!stored || stored.password !== password) throw new AppError('Неверный логин или пароль');
-      db().sessionUserId = stored.id;
-      save();
-      return toUser(stored);
-    }),
-
-  logout(): void {
-    db().sessionUserId = null;
+  async register(input: RegisterInput): Promise<User> {
+    const pair = await authRequest<TokenPair>('/auth/register', {
+      first_name: input.firstName, last_name: input.lastName, email: input.email,
+      login: input.login, password: input.password, direction_ids: [], experience: 'none',
+    });
+    return acceptPair(pair);
+  },
+  async login(loginOrEmail: string, password: string): Promise<User> {
+    return acceptPair(await authRequest<TokenPair>('/auth/login', { login: loginOrEmail, password }));
+  },
+  async logout(): Promise<void> {
+    const refresh_token = getRefreshToken();
+    try {
+      if (refresh_token) await apiRequest<void>('/auth/logout', { method: 'POST', body: JSON.stringify({ refresh_token }) });
+    } finally { clearTokens(); setSessionUserId(null); }
+  },
+  async updateProfile(patch: ProfilePatch): Promise<User> {
+    const payload: Record<string, unknown> = {};
+    if (patch.firstName !== undefined) payload.first_name = patch.firstName;
+    if (patch.lastName !== undefined) payload.last_name = patch.lastName;
+    if (patch.email !== undefined) payload.email = patch.email;
+    if (patch.login !== undefined) payload.login = patch.login;
+    if (patch.experience !== undefined) payload.experience = patch.experience === 'experienced' ? 'expert' : patch.experience === 'beginner' ? 'some' : 'none';
+    if (patch.interests !== undefined) {
+      const directions = await apiRequest<{ id: number; name: string }[]>('/directions');
+      payload.direction_ids = directions.filter((d) => patch.interests?.includes(d.name)).map((d) => d.id);
+    }
+    const user = toUser(await apiRequest<ApiUser>('/users/me', { method: 'PATCH', body: JSON.stringify(payload) }));
+    const local = db().users.find((u) => u.id === user.id);
+    if (local) Object.assign(local, toLocalUser(user));
     save();
+    return user;
   },
-
-  updateProfile: (patch: ProfilePatch): Promise<User> =>
-    respond(() => {
-      const stored = db().users.find((u) => u.id === requireUserId());
-      if (!stored) throw new AppError('Пользователь не найден');
-      assertUnique(patch.email, patch.login, stored.id);
-      Object.assign(stored, patch, patch.email ? { email: patch.email.trim().toLowerCase() } : {});
-      save();
-      return toUser(stored);
-    }),
-
-  changePassword: (oldPassword: string, newPassword: string): Promise<void> =>
-    respond(() => {
-      const stored = db().users.find((u) => u.id === requireUserId());
-      if (!stored) throw new AppError('Пользователь не найден');
-      if (stored.password !== oldPassword) throw new AppError('Текущий пароль указан неверно');
-      stored.password = newPassword;
-      save();
-    }),
-
-  /** Ответ всегда одинаковый — чтобы нельзя было выяснить, зарегистрирован ли email. */
-  requestPasswordReset: (_email: string): Promise<void> => respond(() => undefined, 700),
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await apiRequest<void>('/users/me/password', { method: 'PATCH', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }) });
+  },
+  requestPasswordReset: async (_email: string): Promise<void> => { throw new AppError('Восстановление пароля не входит в лабораторную №4'); },
 };

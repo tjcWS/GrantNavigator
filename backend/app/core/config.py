@@ -11,6 +11,10 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg2://grant_user:grant_password@localhost:5432/grant_navigator"
 
+    jwt_secret: str = "CHANGE_ME_USE_A_RANDOM_SECRET_AT_LEAST_32_CHARS"
+    access_token_minutes: int = 15
+    refresh_token_days: int = 7
+
     # Список разрешённых источников для CORS, через запятую в .env
     cors_origins: str = "http://localhost:5173"
 
