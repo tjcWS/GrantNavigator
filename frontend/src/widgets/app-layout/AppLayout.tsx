@@ -2,7 +2,6 @@ import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
 import { AppBar, Box, Button, Container, Fade, IconButton, Tab, Tabs, Toolbar, Tooltip, Typography } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useSession } from '@/entities/user';
-import { DemoControls } from './DemoControls';
 
 const NAV = [
   { label: 'Конкурсы', to: '/grants' },
@@ -49,7 +48,6 @@ export function AppLayout() {
             <Outlet />
           </Box>
         </Fade>
-        <DemoControls />
       </Container>
     </Box>
   );

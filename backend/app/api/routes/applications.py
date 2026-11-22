@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.api.auth import CurrentUser
 from app.api.deps import get_application_or_404, get_db, get_grant_or_404, get_project_or_404
 from app.crud import application as crud
+from app.models.application import Application, ApplicationStatus
 from app.schemas.application import ApplicationAnswersUpdate, ApplicationCreate, ApplicationRead, ApplicationUpdate
 from app.schemas.check import CheckResultRead
 
@@ -26,6 +27,9 @@ def create_application(data: ApplicationCreate, current_user: CurrentUser, db: S
     project = get_project_or_404(db, data.project_id)
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Проект не найден")
+    duplicate = db.query(Application).filter_by(project_id=data.project_id, grant_id=data.grant_id, owner_id=current_user.id).first()
+    if duplicate:
+        raise HTTPException(status_code=409, detail="Заявка этого проекта на выбранный конкурс уже существует")
     payload = data.model_copy(update={"owner_id": current_user.id})
     return _to_read(crud.create_application(db, payload))
 
@@ -41,7 +45,13 @@ def read_application(application_id: int, current_user: CurrentUser, db: Session
 
 @router.patch("/{application_id}", response_model=ApplicationRead)
 def patch_application(application_id: int, data: ApplicationUpdate, current_user: CurrentUser, db: Session = Depends(get_db)):
-    return _to_read(crud.update_application(db, _owned(application_id, db, current_user.id), data))
+    application = _owned(application_id, db, current_user.id)
+    if data.status is not None and data.status != ApplicationStatus.preparation:
+        answers = {answer.section_id: (answer.content or "").strip() for answer in application.answers}
+        missing = [section.title for section in application.grant.sections if not answers.get(section.id)]
+        if missing:
+            raise HTTPException(status_code=400, detail="Нельзя изменить статус: заполните обязательные разделы — " + ", ".join(missing))
+    return _to_read(crud.update_application(db, application, data))
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_application(application_id: int, current_user: CurrentUser, db: Session = Depends(get_db)):

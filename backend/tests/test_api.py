@@ -91,6 +91,9 @@ def test_grant_crud(client):
     resp = client.get("/grants")
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+    # Каталог отдаёт полный контракт, необходимый frontend для карточки и формы заявки.
+    assert len(resp.json()[0]["sections"]) == 2
+    assert resp.json()[0]["requirements"] == ["Заявитель — НКО"]
 
     resp = client.get(f"/grants/{grant['id']}")
     assert resp.status_code == 200
@@ -130,6 +133,16 @@ def test_full_application_flow(client):
     application = resp.json()
     assert application["status"] == "preparation"
     assert application["latest_check"] is None
+
+    # Нельзя перевести заявку дальше подготовки, пока обязательные разделы пусты.
+    incomplete_status = client.patch(f"/applications/{application['id']}", json={"status": "ready"})
+    assert incomplete_status.status_code == 400
+
+    duplicate = client.post(
+        "/applications",
+        json={"title": "Повтор", "grant_id": grant["id"], "project_id": project["id"]},
+    )
+    assert duplicate.status_code == 409
 
     section_ids = [s["id"] for s in grant["sections"]]
     resp = client.put(

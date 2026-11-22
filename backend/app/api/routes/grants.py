@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.auth import CurrentUser
 from app.api.deps import get_db, get_grant_or_404
 from app.crud import grant as crud
-from app.schemas.grant import GrantCreate, GrantListItem, GrantRead, GrantUpdate
+from app.schemas.grant import GrantCreate, GrantRead, GrantUpdate
 
 router = APIRouter(prefix="/grants", tags=["grants"])
 
@@ -14,7 +14,7 @@ def create_grant(data: GrantCreate, current_user: CurrentUser, db: Session = Dep
     return crud.create_grant(db, data)
 
 
-@router.get("", response_model=list[GrantListItem])
+@router.get("", response_model=list[GrantRead])
 def read_grants(
     search: str | None = Query(default=None, description="Поиск по названию, организатору, описанию"),
     direction_id: int | None = Query(default=None, description="Фильтр по направлению"),

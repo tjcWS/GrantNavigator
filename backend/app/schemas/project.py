@@ -14,7 +14,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    # owner_id берётся из access-токена; необязательно для обратной совместимости
+    # owner_id берётся из access-токена; поле оставлено необязательным для обратной совместимости.
     owner_id: int | None = None
 
 

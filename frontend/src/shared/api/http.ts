@@ -44,7 +44,12 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}, retry 
   }
   if (!response.ok) {
     let message = `Ошибка запроса (${response.status})`;
-    try { const body = await response.json(); message = body.detail || message; } catch { /* no response body */ }
+    try {
+      const body = await response.json();
+      if (typeof body.detail === 'string') message = body.detail;
+      else if (Array.isArray(body.errors)) message = body.errors.map((e: {loc?: (string|number)[]; msg?: string}) => `${(e.loc ?? []).slice(1).join('.') || 'Поле'}: ${e.msg ?? 'некорректное значение'}`).join('\n') || message;
+      else if (Array.isArray(body.detail)) message = body.detail.map((e: {loc?: (string|number)[]; msg?: string}) => `${(e.loc ?? []).slice(1).join('.') || 'Поле'}: ${e.msg ?? 'некорректное значение'}`).join('\n') || message;
+    } catch { /* no response body */ }
     throw new Error(message);
   }
   if (response.status === 204) return undefined as T;

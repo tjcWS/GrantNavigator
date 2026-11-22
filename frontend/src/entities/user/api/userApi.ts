@@ -1,6 +1,5 @@
-import { apiRequest, authRequest, clearTokens, getRefreshToken, saveTokens, setSessionUserId } from '@/shared/api';
-import { db, save } from '@/shared/api';
-import { ExperienceLevel, StoredUser, User } from '../model/types';
+import { apiRequest, authRequest, clearTokens, getRefreshToken, saveTokens } from '@/shared/api';
+import { ExperienceLevel, User } from '../model/types';
 import { AppError } from '@/shared/lib';
 
 export interface RegisterInput { firstName: string; lastName: string; email: string; login: string; password: string; }
@@ -14,22 +13,17 @@ function toUser(u: ApiUser): User {
 async function acceptPair(pair: TokenPair): Promise<User> {
   saveTokens(pair.access_token, pair.refresh_token);
   const user = toUser(pair.user);
-  setSessionUserId(user.id);
   return user;
-}
-function toLocalUser(user: User): StoredUser {
-  return { ...user, password: '' };
 }
 
 export const userApi = {
   async restoreSession(): Promise<User | null> {
-    if (!getRefreshToken()) { clearTokens(); setSessionUserId(null); return null; }
+    if (!getRefreshToken()) { clearTokens(); return null; }
     try {
       const raw = await apiRequest<ApiUser>('/auth/me');
       const user = toUser(raw);
-      setSessionUserId(user.id);
       return user;
-    } catch { clearTokens(); setSessionUserId(null); return null; }
+    } catch { clearTokens(); return null; }
   },
   async register(input: RegisterInput): Promise<User> {
     const pair = await authRequest<TokenPair>('/auth/register', {
@@ -44,8 +38,13 @@ export const userApi = {
   async logout(): Promise<void> {
     const refresh_token = getRefreshToken();
     try {
-      if (refresh_token) await apiRequest<void>('/auth/logout', { method: 'POST', body: JSON.stringify({ refresh_token }) });
-    } finally { clearTokens(); setSessionUserId(null); }
+      if (refresh_token) {
+        // Сначала гарантируем актуальную пару: apiRequest при 401 ротирует refresh.
+        await apiRequest<ApiUser>('/auth/me');
+        const activeRefresh = getRefreshToken();
+        if (activeRefresh) await apiRequest<void>('/auth/logout', { method: 'POST', body: JSON.stringify({ refresh_token: activeRefresh }) });
+      }
+    } finally { clearTokens(); }
   },
   async updateProfile(patch: ProfilePatch): Promise<User> {
     const payload: Record<string, unknown> = {};
@@ -59,13 +58,10 @@ export const userApi = {
       payload.direction_ids = directions.filter((d) => patch.interests?.includes(d.name)).map((d) => d.id);
     }
     const user = toUser(await apiRequest<ApiUser>('/users/me', { method: 'PATCH', body: JSON.stringify(payload) }));
-    const local = db().users.find((u) => u.id === user.id);
-    if (local) Object.assign(local, toLocalUser(user));
-    save();
     return user;
   },
   async changePassword(oldPassword: string, newPassword: string): Promise<void> {
     await apiRequest<void>('/users/me/password', { method: 'PATCH', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }) });
   },
-  requestPasswordReset: async (_email: string): Promise<void> => { throw new AppError('Восстановление пароля не входит в лабораторную №4'); },
+  requestPasswordReset: async (_email: string): Promise<void> => { throw new AppError('Восстановление пароля пока не реализовано'); },
 };

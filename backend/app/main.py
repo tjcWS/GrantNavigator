@@ -28,7 +28,7 @@ def handle_integrity_error(request, exc: IntegrityError):
 
 @app.exception_handler(RequestValidationError)
 def handle_validation_error(request, exc: RequestValidationError):
-
+    # Делаем сообщение об ошибке валидации чуть понятнее стандартного
     return JSONResponse(status_code=422, content={"detail": "Некорректные данные запроса", "errors": exc.errors()})
 
 

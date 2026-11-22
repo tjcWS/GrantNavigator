@@ -27,7 +27,7 @@ class ApplicationBase(BaseModel):
 class ApplicationCreate(ApplicationBase):
     grant_id: int
     project_id: int
-    # Владелец определяется сервером по access-токену
+    # Владелец определяется сервером по access-токену, а не телу запроса.
     owner_id: int | None = None
 
 

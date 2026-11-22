@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.application import Application, ApplicationAnswer
@@ -46,6 +48,7 @@ def save_answers(db: Session, application: Application, content: dict[int, str])
             existing[section_id].content = text
         else:
             db.add(ApplicationAnswer(application_id=application.id, section_id=section_id, content=text))
+    application.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(application)
     return application
